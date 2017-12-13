@@ -38,17 +38,11 @@ class RNNModel(object):
         self.x_holder = tf.placeholder(tf.float32, [self.batch_size, self.num_steps, 1 ], name="x")
         self.y_holder = tf.placeholder(tf.float32, [self.batch_size, self.num_steps, 1], name="y")
         
-        rnn_cell = tf.nn.rnn_cell.LSTMCell(
-            num_units=self.rnn_size, forget_bias=1.0, state_is_tuple=True)
-        #TODO(malzantot): fix
-        #rnn_cell = tf.contrib.rnn.MultiRNNCell(
-        #    [rnn_cell for _ in range(self.num_layers)], state_is_tuple=True)
-        self.zero_state = rnn_cell.zero_state(self.batch_size, tf.float32)
-        self.state_c_holder = tf.placeholder(tf.float32, [self.batch_size, self.rnn_size])
-        self.state_h_holder = tf.placeholder(tf.float32, [self.batch_size, self.rnn_size])
-        self.init_state = tf.nn.rnn_cell.LSTMStateTuple(c=self.state_c_holder,
-                                                        h=self.state_h_holder)
-        rnn_outputs, final_state = tf.nn.dynamic_rnn(cell=rnn_cell,
+        multi_rnn_cell = tf.nn.rnn_cell.MultiRNNCell(
+                [tf.nn.rnn_cell.LSTMCell(self.rnn_size) for _ in range(self.num_layers)], state_is_tuple=True)
+        self.init_state = multi_rnn_cell.zero_state(self.batch_size, tf.float32)
+        
+        rnn_outputs, self.final_state = tf.nn.dynamic_rnn(cell=multi_rnn_cell,
                                                      inputs=self.x_holder,
                                                      initial_state=self.init_state)
         
@@ -63,8 +57,8 @@ class RNNModel(object):
                              initializer=tf.constant_initializer())
         output_fc = tf.matmul(h1, w2) + b2
         self.preds = tf.reshape(output_fc, [self.batch_size, self.num_steps, 1])
-        self.final_c_state = final_state.c
-        self.final_h_state = final_state.h
+        # self.final_c_state = final_state.c
+        # self.final_h_state = final_state.h
         if self.is_training:
             self.optimizer = tf.train.AdamOptimizer()
             self.loss = tf.reduce_mean(tf.squared_difference(self.preds, self.y_holder))
@@ -73,23 +67,21 @@ class RNNModel(object):
      
     def train_for_epoch(self, sess, data_loader):
         assert self.is_training, "Must be training model"
-        cur_c, cur_h = sess.run(self.zero_state)
+        cur_state = sess.run(self.init_state)
         data_loader.reset()
         epoch_loss = []
         while data_loader.has_next():
             batch_xs, batch_ys = data_loader.next_batch()
             batch_xs = batch_xs.reshape((self.batch_size, self.num_steps, 1))
             batch_ys = batch_ys.reshape((self.batch_size, self.num_steps, 1))
-            _, batch_loss_, c_state_, h_state_ = sess.run(
-                [self.train_op, self.loss, self.final_c_state, self.final_h_state],
+            _, batch_loss_, new_state_ = sess.run(
+                [self.train_op, self.loss, self.final_state],
                 feed_dict = {
                     self.x_holder: batch_xs,
                     self.y_holder: batch_ys,
-                    self.state_c_holder: cur_c,
-                    self.state_h_holder: cur_h,
+                    self.init_state: cur_state,
                 })
-            cur_c = c_state_
-            cur_h = h_state_
+            cur_state = new_state_
             epoch_loss.append(batch_loss_)
          
             
@@ -98,24 +90,23 @@ class RNNModel(object):
     
     def predict(self,sess, seq_len=1000):
         assert not self.is_training, "Must be testing model"
-        cur_c, cur_h = sess.run(self.zero_state)
+        cur_state = sess.run(self.init_state)
         preds = []
         preds.append(np.random.uniform())
         for step in range(seq_len):
             batch_xs = np.array(preds[-1]).reshape((self.batch_size, self.num_steps, 1))
-            new_pred_, c_state_, h_state_ = sess.run(
-                [self.preds, self.final_c_state, self.final_h_state],
+            new_pred_, new_state_ = sess.run(
+                [self.preds, self.final_state],
                 feed_dict = {
                     self.x_holder: batch_xs,
-                    self.state_c_holder: cur_c,
-                    self.state_h_holder: cur_h
+                    self.init_state: cur_state
                 }
             )
             preds.append(new_pred_[0][0])
-            cur_c = c_state_
-            cur_h = h_state_
+            cur_state = new_state_
         return preds[1:]
-            
+    
+
             
 
       
