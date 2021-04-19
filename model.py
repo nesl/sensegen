@@ -10,7 +10,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 """
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior() 
 
 import model_utils
 
@@ -166,7 +167,8 @@ class MDNModel(object):
             self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
             #self.loss = tf.reduce_mean(tf.squared_difference(self.preds, self.y_holder))
             print(self.y_holder)
-            mixture_p = tf.contrib.distributions.Normal(self.mu, self.sigma).prob(tf.reshape(self.y_holder,(-1,1)))
+            
+            mixture_p = tf.distributions.Normal(self.mu, self.sigma).prob(tf.reshape(self.y_holder,(-1,1)))
             mixture_p = tf.multiply(self.pi, mixture_p)
             output_p = tf.reduce_sum(mixture_p, reduction_indices=1, keep_dims=True)
             log_output_p = tf.log(output_p)
