@@ -156,6 +156,7 @@ class MDNModel(object):
         mu_ = gmm_params[:, : self.num_mixtures]
         sigma_= gmm_params[:,  self.num_mixtures: 2* self.num_mixtures]
         pi_ = gmm_params[:,  2*self.num_mixtures:]
+        print(pi_)
         self.mu = mu_
         self.sigma = tf.exp(sigma_ / 2.0)
         self.pi = tf.nn.softmax(pi_)
@@ -168,7 +169,7 @@ class MDNModel(object):
             #self.loss = tf.reduce_mean(tf.squared_difference(self.preds, self.y_holder))
             print(self.y_holder)
             
-            mixture_p = tf.distributions.Normal(self.mu, self.sigma).prob(tf.reshape(self.y_holder,(-1,1)))
+            mixture_p = tf.compat.v1.distributions.Normal(self.mu, self.sigma).prob(tf.reshape(self.y_holder,(-1,1)))
             mixture_p = tf.multiply(self.pi, mixture_p)
             output_p = tf.reduce_sum(mixture_p, reduction_indices=1, keep_dims=True)
             log_output_p = tf.log(output_p)
@@ -214,6 +215,7 @@ class MDNModel(object):
                     self.init_state: cur_state
                 }
             )
+
             # chose one
             select_mixture = np.random.choice(self.num_mixtures, p=pi_[0])
             #new_pred_  = np.random.normal(loc=mu_[0
